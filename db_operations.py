@@ -3,6 +3,7 @@ import psycopg2
 import json
 import pandas as pd
 from sqlalchemy import create_engine
+from datetime import datetime
 
 
 def store_profiles_in_postgres_unstruct(data: List[Dict], db_params: Dict[str, str]):
@@ -57,15 +58,17 @@ def store_profiles_in_postgres_struct(data: List[Dict], db_params: Dict[str, str
             following_count INT,
             statuses_count INT,
             last_status_at TIMESTAMP,
-            other_data JSONB
+            other_data JSONB,
+            dw_refresh_time TIMESTAMP
         );'''
 
         cursor.execute(create_table_query)
 
         for entry in data:
+            current_time = datetime.now()
             insert_query = '''INSERT INTO profiles (
-                id, username, display_name, locked, created_at, followers_count, following_count, statuses_count, last_status_at, other_data
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING;'''
+                id, username, display_name, locked, created_at, followers_count, following_count, statuses_count, last_status_at, other_data, dw_refresh_time
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING;'''
 
             cursor.execute(insert_query, (
                 entry.get('id'),
@@ -77,7 +80,8 @@ def store_profiles_in_postgres_struct(data: List[Dict], db_params: Dict[str, str
                 entry.get('following_count'),
                 entry.get('statuses_count'),
                 entry.get('last_status_at'),
-                json.dumps(entry)  # Store the complete JSON as well
+                json.dumps(entry),  # Store the complete JSON as well
+                current_time
             ))
 
         connection.commit()
@@ -145,26 +149,36 @@ def store_sentiment_data(df: pd.DataFrame, db_params: Dict[str, str]) -> None:
         cursor = connection.cursor()
 
         # Create table if it doesn't exist
+        drop_table_query = '''
+        DROP TABLE IF EXISTS sentiment_data;'''
+
+        cursor.execute(drop_table_query)
+
+        # Create table if it doesn't exist
         create_table_query = '''
         CREATE TABLE IF NOT EXISTS sentiment_data (
             id BIGINT PRIMARY KEY,
             username TEXT,
             clean_content TEXT,
-            sentiment TEXT
+            sentiment TEXT,
+            dw_refresh_time TIMESTAMP
         );'''
 
         cursor.execute(create_table_query)
 
+        current_time = datetime.now()
+
         # Insert data
         for _, row in df.iterrows():
             insert_query = '''
-            INSERT INTO sentiment_data (id, username, clean_content, sentiment)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO sentiment_data (id, username, clean_content, sentiment, dw_refresh_time)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE
             SET clean_content = EXCLUDED.clean_content,
-                sentiment = EXCLUDED.sentiment;
+                sentiment = EXCLUDED.sentiment,
+                dw_refresh_time = EXCLUDED.dw_refresh_time;
             '''
-            cursor.execute(insert_query, (row['id'], row['username'], row['clean_content'], row['sentiment']))
+            cursor.execute(insert_query, (row['id'], row['username'], row['clean_content'], row['sentiment'], current_time))
 
         connection.commit()
     except (Exception, psycopg2.DatabaseError) as e:

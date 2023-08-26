@@ -8,7 +8,7 @@ import os
 # print(sys.path)
 
 # Import separated functions
-from mastodon_api import fetch_mastodon_profiles
+from mastodon_api import fetch_mastodon_profiles, fetch_mastodon_usernames
 from db_operations import store_profiles_in_postgres_struct, read_from_postgres, store_sentiment_data
 from text_processing import remove_html_tags, analyze_sentiment
 
@@ -27,11 +27,17 @@ db_params = {
 
 
 def main(base_url: str, access_token: str, db_params: Dict[str, str], limit: int = 10):
-    # Fetch user profiles for analysis
-    usernames = ['popsci', 'cricket']
 
+    #Fetch usernames
+    usernames = fetch_mastodon_usernames(base_url, access_token)
+
+    # print(usernames)
+
+    # Fetch user profiles for analysis
+    # usernames = ['popsci', 'cricket']
     profiles = fetch_mastodon_profiles(base_url, access_token, usernames)
     # print(profiles)
+    
     # Store profiles in PostgreSQL
     store_profiles_in_postgres_struct(profiles, db_params)
 
