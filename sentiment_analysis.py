@@ -4,7 +4,6 @@ import logging
 from dotenv import load_dotenv
 import os
 # Load environment variables from .env file
-load_dotenv()
 # import sys
 # print(sys.path)
 
@@ -12,6 +11,8 @@ load_dotenv()
 from mastodon_api import fetch_mastodon_profiles
 from db_operations import store_profiles_in_postgres_struct, read_from_postgres, store_sentiment_data
 from text_processing import remove_html_tags, analyze_sentiment
+
+load_dotenv()
 
 # Retrieve environment variables
 base_url = os.getenv("BASE_URL")
